@@ -11,22 +11,15 @@
 
 
 #===============================================================================
-# Setup
-#===============================================================================
-set -o errexit
-set -o pipefail
-
-
-#===============================================================================
 # Constants
 #===============================================================================
-readonly __red=$(tput setaf 1)
-readonly __green=$(tput setaf 2)
-readonly __yellow=$(tput setaf 3)
-readonly __reset=$(tput sgr0)
+readonly red=$(tput setaf 1)
+readonly green=$(tput setaf 2)
+readonly yellow=$(tput setaf 3)
+readonly reset=$(tput sgr0)
 
-readonly __config_filepath="${HOME}/.slacks.sh"
-readonly __default_config=$(cat <<EOM
+readonly config_filepath="${HOME}/.slacks.sh"
+readonly default_config=$(cat <<EOM
 WORKSPACES=[]
 
 PRESET_EMOJ_test=":white_check_mark:"
@@ -38,47 +31,123 @@ EOM
 
 
 #===============================================================================
-# Functions
+# Debug
 #===============================================================================
 function debug {
-    [ "$DEBUG" == "true" ] && echo "${__yellow}[DEBUG] $*${__reset}"
+    [ "${DEBUG}" = "true" ] && echo "${yellow}[DEBUG] $*${reset}"
 }
 
+
+#===============================================================================
+# Config
+#===============================================================================
 function create_config_if_not_exist {
-    [ -f ${__config_filepath} ] && return
+    [ -f ${config_filepath} ] && return
 
     # Create default file
     debug "Config file not found. Creating a new one"
-    echo -e "${__default_config}" > "${__config_filepath}"
+    echo -e "${default_config}" > "${config_filepath}"
+}
+
+function print_config_not_found_and_exit {
+    echo "${red}Error: Configuration file doesn't exist${reset}"
+    echo "Setup your first Workspace using \`$(basename $0) config\`"
+    echo
+    echo "For more information, use \`$(basename $0) --help\`"
+    exit 1
 }
 
 function exec_config {
-    echo "${__green}Slack Workspace setup${__reset}"
-    echo "${__green}==========================${__reset}"
+    echo "${green}Slack Workspace setup${reset}"
+    echo "${green}==========================${reset}"
     echo
     echo "You need to have your slack api token ready. If you don't have one,"
-    echo "go to https://github.com/mivok/slack_status_updater and follow the"
-    echo "instructions there for creating a new slack app."
+    echo "go to https://api.slack.com/apps and create a new application."
+    echo "For more information, visit https://github.com/gvicentin/slacks"
     echo
-    read -r -p "${__green}Enter a name for your workspace: ${__reset}" __workspace
-    read -r -p "${__green}Enter the token for ${__workspace}: ${__reset}" __token
+    read -r -p "${green}Enter a name for your workspace: ${reset}" workspace
+    read -r -p "${green}Enter the token for ${workspace}: ${reset}" token
 
     # Try appending to the end of the list, if list is empty,
     # insert the first item.
     create_config_if_not_exist
-    debug "Adding new workspace ${__workspace}"
-    sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${__workspace}\]/" \
-        -i "${__config_filepath}"
-    sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${__workspace}\]/" \
-        -i "${__config_filepath}"
-    echo "${__token}" | keyring set password "slacks-${__workspace}"
+    debug "Adding new workspace ${workspace}"
+    sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${workspace}\]/" \
+        -i "${config_filepath}"
+    sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${workspace}\]/" \
+        -i "${config_filepath}"
+    echo "${token}" | keyring set password "slacks-${workspace}"
 }
 
+
+#===============================================================================
+# Update status 
+#===============================================================================
+function get_workspaces {
+    echo $(grep 'WORKSPACES' "${config_filepath}" | \
+        sed -r 's/^WORKSPACES=\[(.*)\]$/\1/')
+}
+
+function print_no_workspaces_and_exit {
+    echo "${red}Error: Couldn't find any Workspace configured${reset}"
+    echo "Setup your first Workspace using \`$(basename $0) config\`"
+    echo
+    echo "For more information, use \`$(basename $0) --help\`"
+    exit 1
+}
+
+function change_status_by_workspace {
+    local workspace=$1
+    local emoji=$2
+    local text=$3
+    local duration=$4
+
+    # Get token
+    local token=$(keyring get password "slacks-${workspace}")
+    debug "Getting token for slacks-${workspace}"
+    if [ -z "${token}" ]; then
+        echo "${red}Token for ${workspace} not found${reset}"
+        return
+    fi
+    debug "Token: ${token}"
+    return
+
+    local profile="{\"status_emoji\":\"${emoji}\",\"status_text\":\"${text}\",\"status_expiration\":\"${duration}\"}"
+    local response=$(curl -s --data token="${token}" \
+        --data-urlencode profile="${profile}" \
+        https://slack.com/api/users.profile.set)
+}
+
+function exec_clean {
+    [ -f "${config_filepath}" ] || print_config_not_found_and_exit
+     
+    local workspaces=$(get_workspaces)
+    debug "Workspaces: ${workspaces}"
+
+    [ -z "${workspaces}" ] && print_no_workspaces_and_exit
+
+    echo "Resetting slack status to blank"
+    for workspace in $(echo ${workspaces} | tr ',' '\n'); do
+        change_status_by_workspace \
+            "${workspace}" "" "" "0"
+    done
+}
+
+
+#===============================================================================
+# List presets
+#===============================================================================
 function exec_list {
-    local __presets=$(grep 'PRESET_TEXT_' "${__config_filepath}" | cut -d '=' -f 1)
-    echo "${__presets}" | sed 's/PRESET_TEXT_//'
+    [ -f "${config_filepath}" ] || print_config_not_found_and_exit
+
+    local presets=$(grep 'PRESET_TEXT_' "${config_filepath}" | cut -d '=' -f 1)
+    echo "${presets}" | sed 's/PRESET_TEXT_//'
 }
 
+
+#===============================================================================
+# Options 
+#===============================================================================
 function exec_help {
     echo "Usage: $(basename $0) COMMAND | [OPTIONS]"
     echo
@@ -105,7 +174,8 @@ function exec_version {
 # Main
 #===============================================================================
 if [ -z "$1" ]; then
-    echo -e "Command or option required.\n"
+    echo "Command or option required"
+    echo
     help
     exit 1
 fi
@@ -114,18 +184,27 @@ while test -n "$1"
 do
     case "$1" in
 
-        # Commands
-        set)
-            exec_set
-            ;;
-
+        # Update status
+        set     ) exec_set ;;
         clean   ) exec_clean ;;
+
+        # Setup new Workspace
         config  ) exec_config ;;
+
+        # Listing presets
         list    ) exec_list ;;
 
         # Options
         -h | --help     ) exec_help ;;
         -v | --version  ) exec_version ;;
+
+        # Other
+        *) 
+            echo "Invalid option $1"
+            echo
+            exec_help
+            exit 1
+            ;;
     esac
 
     shift
