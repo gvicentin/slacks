@@ -109,13 +109,18 @@ function change_status_by_workspace {
         echo "${red}Token for ${workspace} not found${reset}"
         return
     fi
-    debug "Token: ${token}"
-    return
 
     local profile="{\"status_emoji\":\"${emoji}\",\"status_text\":\"${text}\",\"status_expiration\":\"${duration}\"}"
     local response=$(curl -s --data token="${token}" \
         --data-urlencode profile="${profile}" \
         https://slack.com/api/users.profile.set)
+
+    if echo "${response}" | grep -q '"ok":true,'; then
+        echo "${green}Status updated ok${reset}"
+    else
+        echo "${red}There was a problem updating the status${reset}"
+        echo "Response: ${response}"
+    fi
 }
 
 function exec_clean {
