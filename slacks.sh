@@ -38,7 +38,7 @@ EOM
 
 
 #===============================================================================
-# Functions 
+# Functions
 #===============================================================================
 function debug {
     [ "$DEBUG" == "true" ] && echo "${__yellow}[DEBUG] $*${__reset}"
@@ -63,7 +63,7 @@ function exec_config {
     read -r -p "${__green}Enter a name for your workspace: ${__reset}" __workspace
     read -r -p "${__green}Enter the token for ${__workspace}: ${__reset}" __token
 
-    # Try appending to the end of the list, if list is empty, 
+    # Try appending to the end of the list, if list is empty,
     # insert the first item.
     create_config_if_not_exist
     debug "Adding new workspace ${__workspace}"
@@ -71,6 +71,7 @@ function exec_config {
         -i "${__config_filepath}"
     sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${__workspace}\]/" \
         -i "${__config_filepath}"
+    echo "${__token}" | keyring set password "slacks-${__workspace}"
 }
 
 function exec_list {
@@ -83,7 +84,7 @@ function exec_help {
     echo
     echo "Slacks is a command line utility for changing user's profile status"
     echo "in Slack on one or more Workspaces at the same time."
-    echo 
+    echo
     echo "COMMANDS:"
     echo "  set             Set current status"
     echo "  clean           Clean current status"
@@ -96,12 +97,12 @@ function exec_help {
 }
 
 function exec_version {
-    grep '^# Version: ' slacks.sh | cut -d ':' -f 2 | tr -d ' '
+    grep '^# Version: ' "$0" | cut -d ':' -f 2 | tr -d ' '
 }
 
 
 #===============================================================================
-# Main 
+# Main
 #===============================================================================
 if [ -z "$1" ]; then
     echo -e "Command or option required.\n"
@@ -114,7 +115,10 @@ do
     case "$1" in
 
         # Commands
-        set     ) exec_set ;;
+        set)
+            exec_set
+            ;;
+
         clean   ) exec_clean ;;
         config  ) exec_config ;;
         list    ) exec_list ;;
