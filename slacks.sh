@@ -103,6 +103,16 @@ function print_no_workspaces_and_exit {
     exit 1
 }
 
+function print_set_instructions_and_exit {
+    echo "Preset missing"
+    echo
+    echo "Usage: $(basename $0) PRESET [DURATION]"
+    echo
+    echo "PRESET        Name of the preset to use"
+    echo "DURATION      Status expire duration (Optional)"
+    exit 1
+}
+
 function change_status_by_workspace {
     local workspace=$1
     local emoji=$2
@@ -249,6 +259,10 @@ do
             preset=$2
             duration=$3
             shift 2
+
+            # check if don't have preset
+            [ -z "$preset" ] && print_set_instructions_and_exit
+
             exec_set $preset $duration
             ;;
 
