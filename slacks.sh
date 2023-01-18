@@ -83,6 +83,8 @@ function exec_config {
     sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${WORKSPACE}\]/" \
         -i "${CONFIG_FILE}"
 
+    debug "Saving token in keyring named slacks=${WORKSPACE}"
+
     echo "${token}" | keyring set password "slacks-${WORKSPACE}"
 }
 
@@ -127,16 +129,19 @@ function change_status_by_workspace {
         return
     fi
 
-    local profile="{\"status_emoji\":\"${EMOJI}\",\"status_text\":\"${TEXT}\",\"status_expiration\":\"${DURATION}\"}"
-    local response=$(curl -s --data token="${TOKEN}" \
-        --data-urlencode profile="${profile}" \
+    local PROFILE="{\"status_emoji\":\"${EMOJI}\",\"status_text\":\"${TEXT}\",\"status_expiration\":\"${DURATION}\"}"
+
+    debug "Sending request: $PROFILE"
+
+    local RESPONSE=$(curl -s --data token="${TOKEN}" \
+        --data-urlencode profile="${PROFILE}" \
         https://slack.com/api/users.profile.set)
 
-    if echo "${response}" | grep -q '"ok":true,'; then
+    if echo "${RESPONSE}" | grep -q '"ok":true,'; then
         echo "${GREEN}${WORKSPACE}: Status updated ok${RESET}"
     else
         echo "${RED}There was a problem updating the status for ${WORKSPACE}${RESET}"
-        echo "Response: ${response}"
+        echo "Response: ${RESPONSE}"
     fi
 }
 
@@ -184,7 +189,10 @@ function exec_set {
 
 
     # Overriding duration
-    [ -n "$PARAM_DUR" ] && DUR="$PARAM_DUR"
+    if [ -n "$PARAM_DUR" ]; then 
+        debug "Overriding duration with $PARAM_DUR"
+        DUR="$PARAM_DUR"
+    fi
 
     # Calculate expiration if needed
     [ "$DUR" != "0" ] && EXP=$(date -d "now + $DUR min" "+%s")
