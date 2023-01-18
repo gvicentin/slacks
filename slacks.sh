@@ -24,7 +24,7 @@ WORKSPACES=[]
 
 PRESET_EMOJI_test=":white_check_mark:"
 PRESET_TEXT_test="Testing Slacks"
-PRESET_DURA_test="5"
+PRESET_DUR_test="5"
 EOM
 
 )
@@ -45,10 +45,11 @@ function create_config_if_not_exist {
     [ -f ${config_filepath} ] && return
 
     # Create default file
-    debug "Config file not found. Creating a new one"
     echo -e "${default_config}" > "${config_filepath}"
     echo
     echo "A default configuration has been created at ${green}$CONFIG_FILE.${reset}"
+
+    debug "Config file not found. Creating a new one"
 }
 
 function print_config_not_found_and_exit {
@@ -70,11 +71,12 @@ function exec_config {
     read -r -p "${green}Enter a name for your workspace: ${reset}" workspace
     read -r -p "${green}Enter the token for ${workspace}: ${reset}" token
 
-    # Try appending to the end of the list, if list is empty,
-    # insert the first item.
     create_config_if_not_exist
+
     debug "Adding new workspace ${workspace}"
 
+    # Try appending to the end of the list, if list is empty,
+    # insert the first item.
     sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${workspace}\]/" \
         -i "${config_filepath}"
 
@@ -106,6 +108,7 @@ function change_status_by_workspace {
     local emoji=$2
     local text=$3
     local duration=$4
+    debug "$workspace $emoji $text $duration"
 
     # Get token
     local token=$(keyring get password "slacks-${workspace}")
@@ -115,7 +118,6 @@ function change_status_by_workspace {
         return
     fi
 
-    debug "sent duration: $duration"
     local profile="{\"status_emoji\":\"${emoji}\",\"status_text\":\"${text}\",\"status_expiration\":\"${duration}\"}"
     local response=$(curl -s --data token="${token}" \
         --data-urlencode profile="${profile}" \
@@ -146,7 +148,7 @@ function exec_set {
     local PRESET=$1
     local param_dur=$2
     local EXP="0"
-    echo "param dur: ->$param_dur<-"
+    debug "param dur: ->$param_dur<-"
 
     # Check for config file, source it to access variables
     [ -f "${config_filepath}" ] || print_config_not_found_and_exit
@@ -158,7 +160,8 @@ function exec_set {
     # Getting preset values
     eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
     eval "TEXT=\$PRESET_TEXT_${PRESET}"
-    eval "DUR=\$PRESET_DURA_${PRESET}"
+    eval "DUR=\$PRESET_DUR_${PRESET}"
+    debug "config duration: ->$DUR<-"
 
     [ -z $DUR ] && DUR="0"
 
@@ -171,22 +174,22 @@ function exec_set {
     fi
 
     # Overriding duration
-    [ -n $param_dur ] && DUR=${param_dur}
+    [ -n "$param_dur" ] && DUR=${param_dur}
     debug "Using duration: $DUR"
 
     # Calculate expiration if needed
     [ "$DUR" != "0" ] && EXP=$(date -d "now + $DUR min" "+%s")
     debug "Using expiration: $EXP"
 
-    if [ $EXP == "0" ]; then
+    if [ "$EXP" == "0" ]; then
         echo "Updating status to: ${yellow}$EMOJI ${green}$TEXT${reset}"
     else
         UNTIL=$(date -d "@$EXP" "+%H:%M")
-        echo "Updating status to: ${yellow}$EMOJI ${green}$TEXT until ${yellow}$UNTIL${reset},"
+        echo "Updating status to: ${yellow}$EMOJI ${green}$TEXT until ${yellow}$UNTIL${reset}"
     fi
 
     for workspace in $(echo ${workspaces} | tr ',' '\n'); do
-        change_status_by_workspace "${workspace}" $EMOJI $TEXT $EXP
+        change_status_by_workspace "${workspace}" "$EMOJI" "$TEXT" "$EXP"
     done
 }
 
