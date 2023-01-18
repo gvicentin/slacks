@@ -2,7 +2,7 @@
 # slacks.sh
 #
 #
-# Slacks command line utility for changing user's profile status in Slack
+# Slacks is a command line utility for changing user's profile status in Slack
 # on one or more Workspaces at the same time.
 #
 #
@@ -22,7 +22,7 @@ readonly config_filepath="${HOME}/.slacks.sh"
 readonly default_config=$(cat <<EOM
 WORKSPACES=[]
 
-PRESET_EMOJ_test=":white_check_mark:"
+PRESET_EMOJI_test=":white_check_mark:"
 PRESET_TEXT_test="Testing Slacks"
 PRESET_DURA_test="5"
 EOM
@@ -47,6 +47,8 @@ function create_config_if_not_exist {
     # Create default file
     debug "Config file not found. Creating a new one"
     echo -e "${default_config}" > "${config_filepath}"
+    echo
+    echo "A default configuration has been created at ${green}$CONFIG_FILE.${reset}"
 }
 
 function print_config_not_found_and_exit {
@@ -72,10 +74,13 @@ function exec_config {
     # insert the first item.
     create_config_if_not_exist
     debug "Adding new workspace ${workspace}"
+
     sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${workspace}\]/" \
         -i "${config_filepath}"
+
     sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${workspace}\]/" \
         -i "${config_filepath}"
+
     echo "${token}" | keyring set password "slacks-${workspace}"
 }
 
@@ -110,13 +115,14 @@ function change_status_by_workspace {
         return
     fi
 
+    debug "sent duration: $duration"
     local profile="{\"status_emoji\":\"${emoji}\",\"status_text\":\"${text}\",\"status_expiration\":\"${duration}\"}"
     local response=$(curl -s --data token="${token}" \
         --data-urlencode profile="${profile}" \
         https://slack.com/api/users.profile.set)
 
     if echo "${response}" | grep -q '"ok":true,'; then
-        echo "${green}Status updated ok${reset}"
+        echo "${green}${workspace}: Status updated ok${reset}"
     else
         echo "${red}There was a problem updating the status${reset}"
         echo "Response: ${response}"
@@ -127,14 +133,60 @@ function exec_clean {
     [ -f "${config_filepath}" ] || print_config_not_found_and_exit
      
     local workspaces=$(get_workspaces)
-    debug "Workspaces: ${workspaces}"
-
     [ -z "${workspaces}" ] && print_no_workspaces_and_exit
 
     echo "Resetting slack status to blank"
     for workspace in $(echo ${workspaces} | tr ',' '\n'); do
-        change_status_by_workspace \
-            "${workspace}" "" "" "0"
+        change_status_by_workspace "${workspace}" "" "" "0"
+    done
+}
+
+function exec_set {
+    local workspaces=$(get_workspaces)
+    local PRESET=$1
+    local param_dur=$2
+    local EXP="0"
+    echo "param dur: ->$param_dur<-"
+
+    # Check for config file, source it to access variables
+    [ -f "${config_filepath}" ] || print_config_not_found_and_exit
+    source "${config_filepath}"
+     
+    # Make sure it includes Workspace config
+    [ -z "${workspaces}" ] && print_no_workspaces_and_exit
+
+    # Getting preset values
+    eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
+    eval "TEXT=\$PRESET_TEXT_${PRESET}"
+    eval "DUR=\$PRESET_DURA_${PRESET}"
+
+    [ -z $DUR ] && DUR="0"
+
+    if [[ -z $EMOJI || -z $TEXT ]]; then
+        echo "${yellow}No preset found:${reset} $PRESET"
+        echo
+        echo "If this wasn't a typo, then you will want to add the preset to"
+        echo "the config file at ${green}${config_filepath} ${reset} and try again."
+        exit 1
+    fi
+
+    # Overriding duration
+    [ -n $param_dur ] && DUR=${param_dur}
+    debug "Using duration: $DUR"
+
+    # Calculate expiration if needed
+    [ "$DUR" != "0" ] && EXP=$(date -d "now + $DUR min" "+%s")
+    debug "Using expiration: $EXP"
+
+    if [ $EXP == "0" ]; then
+        echo "Updating status to: ${yellow}$EMOJI ${green}$TEXT${reset}"
+    else
+        UNTIL=$(date -d "@$EXP" "+%H:%M")
+        echo "Updating status to: ${yellow}$EMOJI ${green}$TEXT until ${yellow}$UNTIL${reset},"
+    fi
+
+    for workspace in $(echo ${workspaces} | tr ',' '\n'); do
+        change_status_by_workspace "${workspace}" $EMOJI $TEXT $EXP
     done
 }
 
@@ -181,7 +233,7 @@ function exec_version {
 if [ -z "$1" ]; then
     echo "Command or option required"
     echo
-    help
+    exec_help
     exit 1
 fi
 
@@ -190,7 +242,13 @@ do
     case "$1" in
 
         # Update status
-        set     ) exec_set ;;
+        set) 
+            preset=$2
+            duration=$3
+            shift 2
+            exec_set $preset $duration
+            ;;
+
         clean   ) exec_clean ;;
 
         # Setup new Workspace
