@@ -30,7 +30,7 @@ Setup *Slacks* CLI tool
 git clone https://github.com/gvicentin/slacks.git
 
 # Add it to your PATH
-ln -s ~/.local/bin/slacks REPOSITORY_PATH/slacks.sh
+ln -s REPOSITORY_PATH/slacks.sh ~/.local/bin/slacks
 
 # Configure your first Workspace, here you'll provide a name to identify 
 # the workspace and the token generated in the step before.

@@ -18,7 +18,7 @@ readonly GREEN=$(tput setaf 2)
 readonly YELLOW=$(tput setaf 3)
 readonly RESET=$(tput sgr0)
 
-readonly CONFIG_FILE="${HOME}/.slacks.sh"
+readonly CONFIG_FILE="${HOME}/.slacks.conf"
 readonly DEFAULT_CONFIG=$(cat <<EOM
 WORKSPACES=[]
 
