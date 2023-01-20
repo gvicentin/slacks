@@ -85,7 +85,7 @@ function exec_config {
 
     debug "Saving token in keyring named slacks=${WORKSPACE}"
 
-    echo "${token}" | keyring set password "slacks-${WORKSPACE}"
+    echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
 }
 
 
