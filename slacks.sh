@@ -42,12 +42,12 @@ function debug {
 # Config
 #===============================================================================
 function create_config_if_not_exist {
-    [ -f "$CONFIG_FILE"} ] && return
+    [ -f "$CONFIG_FILE" ] && return
 
     # Create default file
     echo -e "$DEFAULT_CONFIG" > "$CONFIG_FILE"
     echo
-    echo "A default configuration has been created at ${GREEN}${CONFIG_FILE}.${RESET}"
+    echo "A default configuration has been created at ${GREEN}${CONFIG_FILE}${RESET}"
 
     debug "Config file not found. Creating a new one"
 }
