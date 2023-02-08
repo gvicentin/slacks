@@ -10,9 +10,7 @@
 # https://github.com/gvicentin/slacks
 
 
-#===============================================================================
-# Constants
-#===============================================================================
+#---------------------------------[ Constants ]---------------------------------
 readonly RED=$(tput setaf 1)
 readonly GREEN=$(tput setaf 2)
 readonly YELLOW=$(tput setaf 3)
@@ -29,18 +27,11 @@ EOM
 
 )
 
-
-#===============================================================================
-# Debug
-#===============================================================================
 function debug {
     [ "$DEBUG" = "true" ] && echo "${YELLOW}[DEBUG] $*${RESET}"
 }
 
-
-#===============================================================================
-# Config
-#===============================================================================
+#----------------------------------[ Config ]-----------------------------------
 function create_config_if_not_exist {
     [ -f "$CONFIG_FILE" ] && return
 
@@ -88,10 +79,7 @@ function exec_config {
     echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
 }
 
-
-#===============================================================================
-# Update status 
-#===============================================================================
+#-------------------------------[ Update status ]-------------------------------
 function get_workspaces {
     echo $(grep 'WORKSPACES' "$CONFIG_FILE" | \
         sed -r 's/^WORKSPACES=\[(.*)\]$/\1/')
@@ -110,7 +98,7 @@ function print_set_instructions_and_exit {
     echo
     echo "Usage: $(basename $0) PRESET [DURATION]"
     echo
-    echo "PRESET        Name of the pRESET to use"
+    echo "PRESET        Name of the preset to use"
     echo "DURATION      Status expire duration (Optional)"
     exit 1
 }
@@ -172,7 +160,7 @@ function exec_set {
     WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
 
-    # Getting pRESET values
+    # Getting preset values
     eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
     eval "TEXT=\$PRESET_TEXT_${PRESET}"
     eval "DUR=\$PRESET_DUR_${PRESET}"
@@ -182,7 +170,7 @@ function exec_set {
     if [[ -z "$EMOJI" || -z "$TEXT" ]]; then
         echo "${YELLOW}No preset found:${RESET} $PRESET"
         echo
-        echo "If this wasn't a typo, then you will want to add the pRESET to"
+        echo "If this wasn't a typo, then you will want to add the preset to"
         echo "the config file at ${GREEN}${CONFIG_FILE}${RESET} and try again."
         exit 1
     fi
@@ -209,10 +197,7 @@ function exec_set {
     done
 }
 
-
-#===============================================================================
-# List presets
-#===============================================================================
+#-------------------------------[ List presets ]--------------------------------
 function exec_list {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
 
@@ -220,10 +205,7 @@ function exec_list {
     echo "$PRESETS" | sed 's/PRESET_TEXT_//'
 }
 
-
-#===============================================================================
-# Options 
-#===============================================================================
+#----------------------------------[ Options ]----------------------------------
 function exec_help {
     echo "Usage: $(basename $0) COMMAND | [OPTIONS]"
     echo
@@ -234,7 +216,7 @@ function exec_help {
     echo "  set             Set current status"
     echo "  clean           Clean current status"
     echo "  config          Add new Workspace configuration"
-    echo "  list            List available status pRESETs"
+    echo "  list            List available status presets"
     echo
     echo "OPTIONS:"
     echo "  -h, --help      Print this help message"
@@ -245,10 +227,7 @@ function exec_version {
     grep '^# Version: ' "$0" | cut -d ':' -f 2 | tr -d ' '
 }
 
-
-#===============================================================================
-# Main
-#===============================================================================
+#-----------------------------------[ Main ]------------------------------------
 if [ -z "$1" ]; then
     echo "Command or option required"
     echo
@@ -277,7 +256,7 @@ do
         # Setup new Workspace
         config  ) exec_config ;;
 
-        # Listing pRESETs
+        # Listing presets
         list    ) exec_list ;;
 
         # Options
