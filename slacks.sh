@@ -27,11 +27,11 @@ EOM
 
 )
 
+#-----------------------------------[ Utils ]-----------------------------------
 function debug {
     [ "$DEBUG" = "true" ] && echo "${YELLOW}[DEBUG] $*${RESET}"
 }
 
-#----------------------------------[ Config ]-----------------------------------
 function create_config_if_not_exist {
     [ -f "$CONFIG_FILE" ] && return
 
@@ -200,12 +200,43 @@ function exec_set {
 #-------------------------------[ List presets ]--------------------------------
 function exec_list {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+    source $CONFIG_FILE
 
-    local PRESETS=$(grep 'PRESET_TEXT_' "$CONFIG_FILE" | cut -d '=' -f 1)
-    echo "$PRESETS" | sed 's/PRESET_TEXT_//'
+    # column dimension
+    local PRESET_WIDTH=20
+    local TEXT_WIDTH=30
+    local DURATION_WIDTH=15
+
+    local PRESETS=$(grep -Eo 'PRESET_TEXT_[^=]+' $CONFIG_FILE | sed 's/PRESET_TEXT_//')
+
+    if [ -z "$PRESETS" ]; then
+        # don't have any preset yet
+        echo "You don't have any preset yet"
+        echo "Add new presets using the config file: ${GREEN}${CONFIG_FILE}${RESET}"
+        return
+    fi
+
+    # print header
+    printf "%-*s %-*s %-*s\n" $PRESET_WIDTH "PRESET" \
+                              $TEXT_WIDTH "TEXT" \
+                              $DURATION_WIDTH "DURATION"
+
+
+    for PRESET in $PRESETS; do
+        eval "TEXT=\$PRESET_TEXT_${PRESET}"
+        eval "DURATION=\$PRESET_DUR_${PRESET}"
+
+        test -z "$TEXT" && TEXT="None"
+        test -z "$DURATION" && DURATION="No expiring"
+
+        # print row
+        printf "%-*s %-*s %-*s\n" $PRESET_WIDTH "$PRESET" \
+                                  $TEXT_WIDTH "$TEXT" \
+                                  $DURATION_WIDTH "$DURATION"
+    done
 }
 
-#----------------------------------[ Options ]----------------------------------
+#-----------------------------[ Help and Version ]------------------------------
 function exec_help {
     echo "Usage: $(basename $0) COMMAND | [OPTIONS]"
     echo
