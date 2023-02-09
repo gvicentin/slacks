@@ -6,7 +6,7 @@
 # on one or more Workspaces at the same time.
 #
 #
-# Version: v0.1.0
+# Version: v0.2.0
 # https://github.com/gvicentin/slacks
 
 
@@ -51,55 +51,15 @@ function print_config_not_found_and_exit {
     exit 1
 }
 
-function exec_config {
-    echo "${GREEN}Slack Workspace setup${RESET}"
-    echo "${GREEN}==========================${RESET}"
-    echo
-    echo "You need to have your slack api token ready. If you don't have one,"
-    echo "go to https://api.slack.com/apps and create a new application."
-    echo "For more information, visit https://github.com/gvicentin/slacks"
-    echo
-    read -r -p "${GREEN}Enter a name for your workspace: ${RESET}" WORKSPACE 
-    read -r -p "${GREEN}Enter the token for ${workspace}: ${RESET}" TOKEN
-
-    create_config_if_not_exist
-
-    debug "Adding new workspace $WORKSPACE"
-
-    # Try appending to the end of the list, if list is empty,
-    # insert the first item.
-    sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${WORKSPACE}\]/" \
-        -i "${CONFIG_FILE}"
-
-    sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${WORKSPACE}\]/" \
-        -i "${CONFIG_FILE}"
-
-    debug "Saving token in keyring named slacks=${WORKSPACE}"
-
-    echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
-}
-
-#-------------------------------[ Update status ]-------------------------------
 function get_workspaces {
-    echo $(grep 'WORKSPACES' "$CONFIG_FILE" | \
-        sed -r 's/^WORKSPACES=\[(.*)\]$/\1/')
+    echo $(grep 'WORKSPACES' "$CONFIG_FILE" | sed -r 's/^WORKSPACES=\[(.*)\]$/\1/')
 }
 
 function print_no_workspaces_and_exit {
-    echo "${RED}Error: Couldn't find any Workspace configuRED${RESET}"
+    echo "${RED}Error: Couldn't find any Workspace configured${RESET}"
     echo "Setup your first Workspace using \`$(basename $0) config\`"
     echo
     echo "For more information, use \`$(basename $0) --help\`"
-    exit 1
-}
-
-function print_set_instructions_and_exit {
-    echo "PRESET missing"
-    echo
-    echo "Usage: $(basename $0) PRESET [DURATION]"
-    echo
-    echo "PRESET        Name of the preset to use"
-    echo "DURATION      Status expire duration (Optional)"
     exit 1
 }
 
@@ -133,6 +93,93 @@ function change_status_by_workspace {
     fi
 }
 
+#---------------------------------[ Workspace ]---------------------------------
+function exec_workspace_list {
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+    source $CONFIG_FILE
+
+    local WORKSPACE_WIDTH=20
+    local WORKSPACES=$(get_workspaces | tr ',' ' ')
+
+    if [ -z "$WORKSPACES" ]; then
+        # don't have any preset yet
+        echo "You don't have any workspace yet"
+        return
+    fi
+
+    # print header
+    printf "%-*s\n" $WORKSPACE_WIDTH "WORKSPACE"
+
+    for WORKSPACE in $WORKSPACES; do
+        # print row
+        printf "%-*s\n" $WORKSPACE_WIDTH "$WORKSPACE"
+    done
+}
+
+function exec_workspace_add {
+    echo "${GREEN}Slack Workspace setup${RESET}"
+    echo "${GREEN}==========================${RESET}"
+    echo
+    echo "You need to have your slack api token ready. If you don't have one,"
+    echo "go to https://api.slack.com/apps and create a new application."
+    echo "For more information, visit https://github.com/gvicentin/slacks"
+    echo
+    read -r -p "${GREEN}Enter a name for your workspace: ${RESET}" WORKSPACE 
+    read -r -p "${GREEN}Enter the token for ${workspace}: ${RESET}" TOKEN
+
+    create_config_if_not_exist
+
+    debug "Adding new workspace $WORKSPACE"
+
+    # Try appending to the end of the list, if list is empty,
+    # insert the first item.
+    sed -r "s/^WORKSPACES=\[(.+)\]\$/WORKSPACES=\[\1,${WORKSPACE}\]/" \
+        -i "${CONFIG_FILE}"
+
+    sed -r "s/^WORKSPACES=\[\]\$/WORKSPACES=\[${WORKSPACE}\]/" \
+        -i "${CONFIG_FILE}"
+
+    debug "Saving token in keyring named slacks=${WORKSPACE}"
+
+    echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
+}
+
+function exec_workspace_help {
+    echo "Workspace help"
+}
+
+function workspace_invalid_cmd {
+    local ERROR_MSG="$1"
+
+    # print error, help
+    echo -e "${RED}${ERROR_MSG}${RESET}\n"
+    exec_workspace_help
+
+    exit 1
+}
+
+function exec_workspace {
+    test -z "$1" && workspace_invalid_cmd "Command or option required."
+
+    while [ -n "$1" ]; do
+        case "$1" in
+            # commands
+            list ) exec_workspace_list ;;
+            add  ) exec_workspace_add  ;;
+
+            # options
+            -h | --help ) exec_workspace_help ;;
+
+            # other
+            *) workspace_invalid_cmd "Invalid command '$1'" ;; 
+        esac
+        shift
+    done
+
+    exit 0
+}
+
+#-----------------------------------[ Clean ]-----------------------------------
 function exec_clean {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
      
@@ -143,6 +190,17 @@ function exec_clean {
     for workspace in $(echo "$WORKSPACES" | tr ',' '\n'); do
         change_status_by_workspace "${workspace}" "" "" "0"
     done
+}
+
+#----------------------------------[ Preset ]-----------------------------------
+function print_set_instructions_and_exit {
+    echo "PRESET missing"
+    echo
+    echo "Usage: $(basename $0) PRESET [DURATION]"
+    echo
+    echo "PRESET        Name of the preset to use"
+    echo "DURATION      Status expire duration (Optional)"
+    exit 1
 }
 
 function exec_set {
@@ -197,7 +255,6 @@ function exec_set {
     done
 }
 
-#-------------------------------[ List presets ]--------------------------------
 function exec_list {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
     source $CONFIG_FILE
@@ -221,7 +278,6 @@ function exec_list {
                               $TEXT_WIDTH "TEXT" \
                               $DURATION_WIDTH "DURATION"
 
-
     for PRESET in $PRESETS; do
         eval "TEXT=\$PRESET_TEXT_${PRESET}"
         eval "DURATION=\$PRESET_DUR_${PRESET}"
@@ -238,20 +294,33 @@ function exec_list {
 
 #-----------------------------[ Help and Version ]------------------------------
 function exec_help {
-    echo "Usage: $(basename $0) COMMAND | [OPTIONS]"
+    echo "Usage: $(basename $0) [COMMAND|OPTIONS]"
     echo
     echo "Slacks is a command line utility for changing user's profile status"
     echo "in Slack on one or more Workspaces at the same time."
     echo
+    echo "Some commands support the --help (or -h) option for more information:"
+    echo "$(basename $0) COMMAND --help"
+    echo
     echo "COMMANDS:"
-    echo "  set             Set current status"
-    echo "  clean           Clean current status"
-    echo "  config          Add new Workspace configuration"
-    echo "  list            List available status presets"
+    echo "  workspace       Configure your slack's workspaces"
+    echo "  set             Update your status with custom parameters"
+    echo "  preset          Configure and re-use presets for your status"
+    echo "  clean           Remove current status if there is any"
     echo
     echo "OPTIONS:"
     echo "  -h, --help      Print this help message"
     echo "  -v, --version   Print current version"
+}
+
+function print_invalid_cmd_and_exit {
+    local ERROR_MSG="$1"
+
+    # print error, help
+    echo -e "${RED}${ERROR_MSG}${RESET}\n"
+    exec_help
+
+    exit 1
 }
 
 function exec_version {
@@ -259,49 +328,22 @@ function exec_version {
 }
 
 #-----------------------------------[ Main ]------------------------------------
-if [ -z "$1" ]; then
-    echo "Command or option required"
-    echo
-    exec_help
-    exit 1
-fi
+test -z "$1" && print_invalid_cmd_and_exit "Command or option required."
 
-while test -n "$1"
-do
+while [ -n "$1" ]; do
     case "$1" in
+        # commands
+        workspace ) exec_workspace "${@:2}" ;;
+        set       ) exec_set       "${@:2}" ;;
+        preset    ) exec_preset    "${@:2}" ;;
+        clean     ) exec_clean              ;;
 
-        # Update status
-        set) 
-            PRESET=$2
-            DURATION=$3
-            shift 2
+        # options
+        -h | --help    ) exec_help     ;;
+        -v | --version ) exec_version  ;;
 
-            # check if don't have pRESET
-            [ -z "$PRESET" ] && print_set_instructions_and_exit
-
-            exec_set $PRESET $DURATION
-            ;;
-
-        clean   ) exec_clean ;;
-
-        # Setup new Workspace
-        config  ) exec_config ;;
-
-        # Listing presets
-        list    ) exec_list ;;
-
-        # Options
-        -h | --help     ) exec_help ;;
-        -v | --version  ) exec_version ;;
-
-        # Other
-        *) 
-            echo "Invalid option $1"
-            echo
-            exec_help
-            exit 1
-            ;;
+        # other
+        *) print_invalid_cmd_and_exit "Invalid command '$1'" ;;
     esac
-
     shift
 done
