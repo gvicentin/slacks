@@ -1,5 +1,8 @@
 # Slack Status
 
+![Latest Release](https://img.shields.io/github/v/release/gvicentin/slacks)
+![License](https://img.shields.io/github/license/gvicentin/slacks)
+
 Slacks is a command line utility for changing user's profile status in Slack on
 one or more Workspaces at the same time.
 
