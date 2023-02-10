@@ -111,9 +111,11 @@ function exec_workspace_list {
     printf "%-*s\n" $WORKSPACE_WIDTH "WORKSPACE"
 
     for WORKSPACE in $WORKSPACES; do
-        # print row
+        # print rows
         printf "%-*s\n" $WORKSPACE_WIDTH "$WORKSPACE"
     done
+
+    exit 0
 }
 
 function exec_workspace_add {
@@ -142,10 +144,54 @@ function exec_workspace_add {
     debug "Saving token in keyring named slacks=${WORKSPACE}"
 
     echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
+
+    exit 0
+}
+
+function exec_workspace_remove {
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+
+    local WORKSPACES=$(get_workspaces)
+    local IS_VALID="false"
+
+    read -r -p "Select workspace to remove (${WORKSPACES}): " REM_WORKSPACE 
+
+    for WORKSPACE in $(echo $WORKSPACES | tr ',' ' '); do
+        test "$WORKSPACE" = "$REM_WORKSPACE" && IS_VALID="true"
+    done
+
+    if [ "$IS_VALID" = "false" ]; then
+        echo "${RED}Invalid workspace provided: ${REM_WORKSPACE}${RESET}"
+        exit 1
+    fi
+
+    # remove entry from config file
+    WORKSPACES=$(echo $WORKSPACES | sed -r "s/${REM_WORKSPACE},|,${REM_WORKSPACE}//")
+    sed -r "s/^WORKSPACES=\[.*\]\$/WORKSPACES=\[${WORKSPACES}\]/" \
+        -i "${CONFIG_FILE}"
+
+    # remove token
+    keyring del password "slacks-${REM_WORKSPACE}"
+
+    echo "${GREEN}Workspace $REM_WORKSPACE removed.${RESET}"
+    exit 0
 }
 
 function exec_workspace_help {
-    echo "Workspace help"
+    echo "Usage: $(basename $0) workspace [COMMAND|OPTIONS]"
+    echo
+    echo "Control your workspaces. You can update your status in multiples"
+    echo "workspaces at the same time."
+    echo
+    echo "COMMANDS:"
+    echo "  list            List your workspaces"
+    echo "  add             Configure a new workspace"
+    echo "  remove          Removes workspace configuration"
+    echo
+    echo "OPTIONS:"
+    echo "  -h, --help      Print this help message"
+
+    exit 0
 }
 
 function workspace_invalid_cmd {
@@ -164,8 +210,9 @@ function exec_workspace {
     while [ -n "$1" ]; do
         case "$1" in
             # commands
-            list ) exec_workspace_list ;;
-            add  ) exec_workspace_add  ;;
+            list   ) exec_workspace_list   ;;
+            add    ) exec_workspace_add    ;;
+            remove ) exec_workspace_remove ;;
 
             # options
             -h | --help ) exec_workspace_help ;;
