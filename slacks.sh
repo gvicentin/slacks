@@ -51,6 +51,17 @@ function print_config_not_found_and_exit {
     exit 1
 }
 
+function print_invalid_cmd_and_exit {
+    local ERROR_MSG="$1"
+    local HELP="$2"
+
+    # print error, help
+    echo -e "${RED}${ERROR_MSG}${RESET}\n" 
+    echo -e "$HELP"
+
+    exit 1
+}
+
 function get_workspaces {
     echo $(grep 'WORKSPACES' "$CONFIG_FILE" | sed -r 's/^WORKSPACES=\[(.*)\]$/\1/')
 }
@@ -194,18 +205,11 @@ function exec_workspace_help {
     exit 0
 }
 
-function workspace_invalid_cmd {
-    local ERROR_MSG="$1"
-
-    # print error, help
-    echo -e "${RED}${ERROR_MSG}${RESET}\n"
-    exec_workspace_help
-
-    exit 1
-}
-
 function exec_workspace {
-    test -z "$1" && workspace_invalid_cmd "Command or option required."
+    if [ -z "$1" ]; then
+        print_invalid_cmd_and_exit "Command or option required." \
+                                   "$(exec_workspace_help)"
+    fi
 
     while [ -n "$1" ]; do
         case "$1" in
@@ -218,7 +222,8 @@ function exec_workspace {
             -h | --help ) exec_workspace_help ;;
 
             # other
-            *) workspace_invalid_cmd "Invalid command '$1'" ;; 
+            *) print_invalid_cmd_and_exit "Invalid option $1" \
+                                          "$(exec_workspace_help)" ;;
         esac
         shift
     done
@@ -240,17 +245,7 @@ function exec_clean {
 }
 
 #----------------------------------[ Preset ]-----------------------------------
-function print_set_instructions_and_exit {
-    echo "PRESET missing"
-    echo
-    echo "Usage: $(basename $0) PRESET [DURATION]"
-    echo
-    echo "PRESET        Name of the preset to use"
-    echo "DURATION      Status expire duration (Optional)"
-    exit 1
-}
-
-function exec_set {
+function exec_preset_use {
     local WORKSPACES=""
     local PRESET=$1
     local PARAM_DUR=$2
@@ -280,7 +275,6 @@ function exec_set {
         exit 1
     fi
 
-
     # Overriding duration
     if [ -n "$PARAM_DUR" ]; then 
         debug "Overriding duration with $PARAM_DUR"
@@ -300,9 +294,11 @@ function exec_set {
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
         change_status_by_workspace "$WORKSPACE" "$EMOJI" "$TEXT" "$EXP"
     done
+
+    exit 0
 }
 
-function exec_list {
+function exec_preset_list {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
     source $CONFIG_FILE
 
@@ -337,6 +333,53 @@ function exec_list {
                                   $TEXT_WIDTH "$TEXT" \
                                   $DURATION_WIDTH "$DURATION"
     done
+
+    exit 0
+}
+
+function exec_preset_help {
+    echo "Usage: $(basename $0) preset [COMMAND|OPTIONS]"
+    echo
+    echo "Update your status using a preset. You can configure presets and"
+    echo "use them to save time."
+    echo
+    echo "COMMANDS:"
+    echo "  use             Use preset"
+    echo "  list            List your presets"
+    echo "  add             Configure new preset" 
+    echo "  remove          Removes a preset"
+    echo
+    echo "OPTIONS:"
+    echo "  -h, --help      Print this help message"
+
+    exit 0
+}
+
+function exec_preset {
+    if [ -z "$1" ]; then
+        print_invalid_cmd_and_exit "Command or option required." \
+                                   "$(exec_preset_help)"
+    fi
+
+    while [ -n "$1" ]; do
+        case "$1" in
+            # commands
+            use    ) exec_preset_use "${@:2}" ;;
+            list   ) exec_preset_list         ;;
+            add    ) exec_preset_add          ;;
+            remove ) exec_preset_remove       ;;
+
+            # options
+            -h | --help ) exec_preset_help ;;
+
+            # other
+            *) print_invalid_cmd_and_exit "Invalid command '$1'" \
+                                          "$(exec_preset_help)" ;; 
+        esac
+        shift
+    done
+
+    exit 0
 }
 
 #-----------------------------[ Help and Version ]------------------------------
@@ -360,22 +403,15 @@ function exec_help {
     echo "  -v, --version   Print current version"
 }
 
-function print_invalid_cmd_and_exit {
-    local ERROR_MSG="$1"
-
-    # print error, help
-    echo -e "${RED}${ERROR_MSG}${RESET}\n"
-    exec_help
-
-    exit 1
-}
-
 function exec_version {
     grep '^# Version: ' "$0" | cut -d ':' -f 2 | tr -d ' '
 }
 
 #-----------------------------------[ Main ]------------------------------------
-test -z "$1" && print_invalid_cmd_and_exit "Command or option required."
+if [ -z "$1" ]; then
+    print_invalid_cmd_and_exit "Command or option required." \
+                               "$(exec_help)"
+fi
 
 while [ -n "$1" ]; do
     case "$1" in
@@ -390,7 +426,8 @@ while [ -n "$1" ]; do
         -v | --version ) exec_version  ;;
 
         # other
-        *) print_invalid_cmd_and_exit "Invalid command '$1'" ;;
+        *) print_invalid_cmd_and_exit "Invalid option $1" \
+                                      "$(exec_help)" ;;
     esac
     shift
 done
