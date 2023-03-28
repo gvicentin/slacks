@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#
 # slacks.sh
 #
 #
@@ -125,8 +126,6 @@ function exec_workspace_list {
         # print rows
         printf "%-*s\n" $WORKSPACE_WIDTH "$WORKSPACE"
     done
-
-    exit 0
 }
 
 function exec_workspace_add {
@@ -155,8 +154,6 @@ function exec_workspace_add {
     debug "Saving token in keyring named slacks=${WORKSPACE}"
 
     echo "${TOKEN}" | keyring set password "slacks-${WORKSPACE}"
-
-    exit 0
 }
 
 function exec_workspace_remove {
@@ -185,7 +182,6 @@ function exec_workspace_remove {
     keyring del password "slacks-${REM_WORKSPACE}"
 
     echo "${GREEN}Workspace $REM_WORKSPACE removed.${RESET}"
-    exit 0
 }
 
 function exec_workspace_help {
@@ -201,8 +197,6 @@ function exec_workspace_help {
     echo
     echo "OPTIONS:"
     echo "  -h, --help      Print this help message"
-
-    exit 0
 }
 
 function exec_workspace {
@@ -211,24 +205,20 @@ function exec_workspace {
                                    "$(exec_workspace_help)"
     fi
 
-    while [ -n "$1" ]; do
-        case "$1" in
-            # commands
-            list   ) exec_workspace_list   ;;
-            add    ) exec_workspace_add    ;;
-            remove ) exec_workspace_remove ;;
+    case "$1" in
+        # commands
+        list   ) exec_workspace_list   ;;
+        add    ) exec_workspace_add    ;;
+        remove ) exec_workspace_remove ;;
 
-            # options
-            -h | --help ) exec_workspace_help ;;
+        # options
+        -h | --help ) exec_workspace_help ;;
 
-            # other
-            *) print_invalid_cmd_and_exit "Invalid option $1" \
-                                          "$(exec_workspace_help)" ;;
-        esac
-        shift
-    done
-
-    exit 0
+        # other
+        *) print_invalid_cmd_and_exit "Invalid option $1" \
+                                      "$(exec_workspace_help)" ;;
+    esac
+    shift
 }
 
 #-----------------------------------[ Clean ]-----------------------------------
@@ -294,8 +284,6 @@ function exec_preset_use {
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
         change_status_by_workspace "$WORKSPACE" "$EMOJI" "$TEXT" "$EXP"
     done
-
-    exit 0
 }
 
 function exec_preset_list {
@@ -333,8 +321,6 @@ function exec_preset_list {
                                   $TEXT_WIDTH "$TEXT" \
                                   $DURATION_WIDTH "$DURATION"
     done
-
-    exit 0
 }
 
 function exec_preset_help {
@@ -351,8 +337,6 @@ function exec_preset_help {
     echo
     echo "OPTIONS:"
     echo "  -h, --help      Print this help message"
-
-    exit 0
 }
 
 function exec_preset {
@@ -361,25 +345,21 @@ function exec_preset {
                                    "$(exec_preset_help)"
     fi
 
-    while [ -n "$1" ]; do
-        case "$1" in
-            # commands
-            use    ) exec_preset_use "${@:2}" ;;
-            list   ) exec_preset_list         ;;
-            add    ) exec_preset_add          ;;
-            remove ) exec_preset_remove       ;;
+    case "$1" in
+        # commands
+        use    ) exec_preset_use "${@:2}" ;;
+        list   ) exec_preset_list         ;;
+        add    ) exec_preset_add          ;;
+        remove ) exec_preset_remove       ;;
 
-            # options
-            -h | --help ) exec_preset_help ;;
+        # options
+        -h | --help ) exec_preset_help ;;
 
-            # other
-            *) print_invalid_cmd_and_exit "Invalid command '$1'" \
-                                          "$(exec_preset_help)" ;; 
-        esac
-        shift
-    done
-
-    exit 0
+        # other
+        *) print_invalid_cmd_and_exit "Invalid command '$1'" \
+                                      "$(exec_preset_help)" ;; 
+    esac
+    shift
 }
 
 #-----------------------------[ Help and Version ]------------------------------
@@ -413,21 +393,18 @@ if [ -z "$1" ]; then
                                "$(exec_help)"
 fi
 
-while [ -n "$1" ]; do
-    case "$1" in
-        # commands
-        workspace ) exec_workspace "${@:2}" ;;
-        set       ) exec_set       "${@:2}" ;;
-        preset    ) exec_preset    "${@:2}" ;;
-        clean     ) exec_clean              ;;
+case "$1" in
+    # commands
+    workspace ) exec_workspace "${@:2}" ;;
+    set       ) exec_set       "${@:2}" ;;
+    preset    ) exec_preset    "${@:2}" ;;
+    clean     ) exec_clean              ;;
 
-        # options
-        -h | --help    ) exec_help     ;;
-        -v | --version ) exec_version  ;;
+    # options
+    -h | --help    ) exec_help     ;;
+    -v | --version ) exec_version  ;;
 
-        # other
-        *) print_invalid_cmd_and_exit "Invalid option $1" \
-                                      "$(exec_help)" ;;
-    esac
-    shift
-done
+    # other
+    *) print_invalid_cmd_and_exit "Invalid option $1" \
+                                  "$(exec_help)" ;;
+esac
