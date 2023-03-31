@@ -77,10 +77,10 @@ function print_no_workspaces_and_exit {
 
 function change_status_by_workspace {
     local WORKSPACE=$1
-    local EMOJI=$2
-    local TEXT=$3
+    local STATUS=$2
+    local EMOJI=$3
     local DURATION=$4
-    local DND=${5:-"false"}
+    local DND=$5
 
     # Get token
     local TOKEN=$(keyring get password "slacks-${WORKSPACE}")
@@ -90,8 +90,21 @@ function change_status_by_workspace {
         return
     fi
 
-    local PROFILE="{\"status_emoji\":\"${EMOJI}\",\"status_text\":\"${TEXT}\",\"status_expiration\":\"${DURATION}\"}"
+    # Duration and expiring timestamp.
+    # If duration is 0 we don't want the status to change.
+    EXPIRATION="0"
+    [ "$DURATION" != "0" ] && EXPIRATION=$(date -d "now + $DURATION min" "+%s") \
+                           || DURATION="1440"
 
+    if [ "$EXPIRATION" == "0" ]; then
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT}${RESET}"
+    else
+        UNTIL=$(date -d "@$EXPIRATION" "+%H:%M")
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT} until ${YELLOW}${UNTIL}${RESET}"
+    fi
+
+    # Changing status
+    local PROFILE="{\"status_emoji\":\"${EMOJI}\",\"status_text\":\"${STATUS}\",\"status_expiration\":\"${EXPIRATION}\"}"
     debug "Sending request: $PROFILE"
 
     local RESPONSE=$(curl -s --data token="${TOKEN}" \
@@ -105,15 +118,17 @@ function change_status_by_workspace {
         echo "Response: ${RESPONSE}"
     fi
 
+    # Enable Do not Disturn if required
     if [ "$DND" = "true" ]; then
+        debug "Sending request: {num_minutes: \"$DURATION\"}"
         RESPONSE=$(curl -s --data token="${TOKEN}" \
-            --data num_minutes="10" \
+            --data num_minutes="${DURATION}" \
             https://slack.com/api/dnd.setSnooze)
 
         if echo "${RESPONSE}" | grep -q '"ok":true,'; then
-            echo "${GREEN}${WORKSPACE}: DND updated ok${RESET}"
+            echo "${GREEN}${WORKSPACE}: DnD updated ok${RESET}"
         else
-            echo "${RED}There was a problem updating the DND for ${WORKSPACE}${RESET}"
+            echo "${RED}There was a problem updating the DnD for ${WORKSPACE}${RESET}"
             echo "Response: ${RESPONSE}"
         fi
     fi
@@ -233,6 +248,51 @@ function exec_workspace {
                                       "$(exec_workspace_help)" ;;
     esac
     shift
+}
+
+#------------------------------------[ Set ]------------------------------------
+function exec_set {
+    local WORKSPACES=""
+    local STATUS=""
+    local EMOJI=":default:"
+    local DURATION="0"
+    local DND="false"
+
+    # Check for config file, source it to access variables
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+    source "$CONFIG_FILE"
+     
+    # Make sure it includes Workspace config
+    WORKSPACES=$(get_workspaces)
+    [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
+
+    while [ -n "$1" ]; do
+        # consuming all parameters
+        case "$1" in
+            --status   ) STATUS="$2"    && shift ;;
+            --emoji    ) EMOJI="$2"     && shift ;;
+            --duration ) DURATION="$2"  && shift ;;
+            --dnd      ) DND="true"              ;;
+        esac
+        shift
+    done
+
+    # Validate status text
+    if [ -z "$STATUS" ]; then
+        echo "${RED}Parameter required: --status${RESET}"
+        exit 1
+    fi
+
+    # Validate status duration
+    echo "$DURATION" | grep -Eq "[0-9]+"
+    if [ $? -ne 0 ]; then
+        echo "${RED}Invalid parameter: --duration '${DURATION}'${RESET}"
+        exit 1
+    fi
+
+    for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
+        change_status_by_workspace "$WORKSPACE" "$STATUS" "$EMOJI" "$DURATION" "$DND"
+    done
 }
 
 #----------------------------------[ Preset ]-----------------------------------
