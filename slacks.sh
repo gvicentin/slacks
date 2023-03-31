@@ -422,6 +422,7 @@ function exec_preset_list {
     local PRESET_WIDTH=20
     local TEXT_WIDTH=30
     local DURATION_WIDTH=15
+    local DND_WIDTH=15
 
     local PRESETS=$(grep -Eo 'PRESET_TEXT_[^=]+' $CONFIG_FILE | sed 's/PRESET_TEXT_//')
 
@@ -433,21 +434,25 @@ function exec_preset_list {
     fi
 
     # print header
-    printf "%-*s %-*s %-*s\n" $PRESET_WIDTH "PRESET" \
-                              $TEXT_WIDTH "TEXT" \
-                              $DURATION_WIDTH "DURATION"
+    printf "%-*s %-*s %-*s %-*s\n" $PRESET_WIDTH "PRESET" \
+                                   $TEXT_WIDTH "TEXT" \
+                                   $DURATION_WIDTH "DURATION" \
+                                   $DND_WIDTH "DnD"
 
     for PRESET in $PRESETS; do
         eval "TEXT=\$PRESET_TEXT_${PRESET}"
         eval "DURATION=\$PRESET_DUR_${PRESET}"
+        eval "DND=\$PRESET_DND_${PRESET}"
 
         test -z "$TEXT" && TEXT="None"
         test -z "$DURATION" && DURATION="No expiring"
+        test -z "$DND" && DND="false"
 
         # print row
-        printf "%-*s %-*s %-*s\n" $PRESET_WIDTH "$PRESET" \
-                                  $TEXT_WIDTH "$TEXT" \
-                                  $DURATION_WIDTH "$DURATION"
+        printf "%-*s %-*s %-*s %-*s\n" $PRESET_WIDTH "$PRESET" \
+                                       $TEXT_WIDTH "$TEXT" \
+                                       $DURATION_WIDTH "$DURATION" \
+                                       $DND_WIDTH "$DND"
     done
 }
 
