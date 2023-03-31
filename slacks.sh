@@ -80,6 +80,7 @@ function change_status_by_workspace {
     local EMOJI=$2
     local TEXT=$3
     local DURATION=$4
+    local DND=${5:-"false"}
 
     # Get token
     local TOKEN=$(keyring get password "slacks-${WORKSPACE}")
@@ -102,6 +103,19 @@ function change_status_by_workspace {
     else
         echo "${RED}There was a problem updating the status for ${WORKSPACE}${RESET}"
         echo "Response: ${RESPONSE}"
+    fi
+
+    if [ "$DND" = "true" ]; then
+        RESPONSE=$(curl -s --data token="${TOKEN}" \
+            --data num_minutes="10" \
+            https://slack.com/api/dnd.setSnooze)
+
+        if echo "${RESPONSE}" | grep -q '"ok":true,'; then
+            echo "${GREEN}${WORKSPACE}: DND updated ok${RESET}"
+        else
+            echo "${RED}There was a problem updating the DND for ${WORKSPACE}${RESET}"
+            echo "Response: ${RESPONSE}"
+        fi
     fi
 }
 
@@ -221,24 +235,12 @@ function exec_workspace {
     shift
 }
 
-#-----------------------------------[ Clean ]-----------------------------------
-function exec_clean {
-    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
-     
-    local WORKSPACES=$(get_workspaces)
-    [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
-
-    echo "Resetting slack status to blank"
-    for workspace in $(echo "$WORKSPACES" | tr ',' '\n'); do
-        change_status_by_workspace "${workspace}" "" "" "0"
-    done
-}
-
 #----------------------------------[ Preset ]-----------------------------------
 function exec_preset_use {
     local WORKSPACES=""
-    local PRESET=$1
-    local PARAM_DUR=$2
+    local PRESET=""
+    local PARAM_DUR=""
+    local DND="false"
     local DUR="0"
     local EXP="0"
 
@@ -249,6 +251,34 @@ function exec_preset_use {
     # Make sure it includes Workspace config
     WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
+
+    # parameters
+    while [ -n "$1" ]; do
+        case "$1" in
+            # duration option is optional
+            -d | --duration ) 
+                PARAM_DUR="$2" && shift
+                echo "$PARAM_DUR" | grep -Eq "[0-9]+"
+                if [ $? -ne 0 ]; then
+                    echo "${RED}Error: Invalid duration '${PARAM_DUR}'${RESET}"
+                    exit 1
+                fi
+                ;;
+
+            # do not disturb
+            -n | --dnd ) DND="true" ;;
+
+            # preset
+            *) [ -z "$PRESET" ] && PRESET="$1" ;;
+        esac
+        shift
+    done
+
+    # TODO: remove me
+    # test code
+    debug "preset: $PRESET"
+    debug "duration: $PARAM_DUR"
+    debug "dnd: $DND"
 
     # Getting preset values
     eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
@@ -282,7 +312,7 @@ function exec_preset_use {
     fi
 
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
-        change_status_by_workspace "$WORKSPACE" "$EMOJI" "$TEXT" "$EXP"
+        change_status_by_workspace "$WORKSPACE" "$EMOJI" "$TEXT" "$EXP" "$DND"
     done
 }
 
@@ -360,6 +390,19 @@ function exec_preset {
                                       "$(exec_preset_help)" ;; 
     esac
     shift
+}
+
+#-----------------------------------[ Clean ]-----------------------------------
+function exec_clean {
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+     
+    local WORKSPACES=$(get_workspaces)
+    [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
+
+    echo "Resetting slack status to blank"
+    for workspace in $(echo "$WORKSPACES" | tr ',' '\n'); do
+        change_status_by_workspace "${workspace}" "" "" "0"
+    done
 }
 
 #-----------------------------[ Help and Version ]------------------------------
