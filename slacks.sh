@@ -57,7 +57,7 @@ function print_invalid_cmd_and_exit {
     local HELP="$2"
 
     # print error, help
-    echo -e "${RED}${ERROR_MSG}${RESET}\n" 
+    echo -e "${RED}${ERROR_MSG}${RESET}\n"
     echo -e "$HELP"
 
     exit 1
@@ -134,6 +134,44 @@ function change_status_by_workspace {
     fi
 }
 
+function clean_status_by_workspace {
+    local WORKSPACE=$1
+
+    # Get token
+    local TOKEN=$(keyring get password "slacks-${WORKSPACE}")
+    debug "Getting TOKEN for slacks-${WORKSPACE}"
+    if [ -z "$TOKEN" ]; then
+        echo "${RED}Token for $WORKSPACE not found${RESET}"
+        return
+    fi
+
+    # Cleaning status
+    local PROFILE="{\"status_emoji\":\"\",\"status_text\":\"\",\"status_expiration\":\"0\"}"
+    debug "Sending request: $PROFILE"
+
+    local RESPONSE=$(curl -s --data token="${TOKEN}" \
+        --data-urlencode profile="${PROFILE}" \
+        https://slack.com/api/users.profile.set)
+
+    if echo "${RESPONSE}" | grep -q '"ok":true,'; then
+        echo "${GREEN}${WORKSPACE}: Status cleaned${RESET}"
+    else
+        echo "${RED}There was a problem cleaning the status for ${WORKSPACE}${RESET}"
+        echo "Response: ${RESPONSE}"
+    fi
+
+    # Disable Do not Disturn if required
+    RESPONSE=$(curl -s --data token="${TOKEN}" \
+        https://slack.com/api/dnd.endSnooze)
+
+    if echo "${RESPONSE}" | grep -q '"ok":true,'; then
+        echo "${GREEN}${WORKSPACE}: DnD cleaned${RESET}"
+    else
+        echo "${RED}There was a problem cleaning the DnD for ${WORKSPACE}${RESET}"
+        echo "Response: ${RESPONSE}"
+    fi
+}
+
 #---------------------------------[ Workspace ]---------------------------------
 function exec_workspace_list {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
@@ -165,7 +203,7 @@ function exec_workspace_add {
     echo "go to https://api.slack.com/apps and create a new application."
     echo "For more information, visit https://github.com/gvicentin/slacks"
     echo
-    read -r -p "${GREEN}Enter a name for your workspace: ${RESET}" WORKSPACE 
+    read -r -p "${GREEN}Enter a name for your workspace: ${RESET}" WORKSPACE
     read -r -p "${GREEN}Enter the token for ${workspace}: ${RESET}" TOKEN
 
     create_config_if_not_exist
@@ -191,7 +229,7 @@ function exec_workspace_remove {
     local WORKSPACES=$(get_workspaces)
     local IS_VALID="false"
 
-    read -r -p "Select workspace to remove (${WORKSPACES}): " REM_WORKSPACE 
+    read -r -p "Select workspace to remove (${WORKSPACES}): " REM_WORKSPACE
 
     for WORKSPACE in $(echo $WORKSPACES | tr ',' ' '); do
         test "$WORKSPACE" = "$REM_WORKSPACE" && IS_VALID="true"
@@ -261,7 +299,7 @@ function exec_set {
     # Check for config file, source it to access variables
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
     source "$CONFIG_FILE"
-     
+
     # Make sure it includes Workspace config
     WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
@@ -307,7 +345,7 @@ function exec_preset_use {
     # Check for config file, source it to access variables
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
     source "$CONFIG_FILE"
-     
+
     # Make sure it includes Workspace config
     WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
@@ -316,7 +354,7 @@ function exec_preset_use {
     while [ -n "$1" ]; do
         case "$1" in
             # duration option is optional
-            -d | --duration ) 
+            -d | --duration )
                 PARAM_DUR="$2" && shift
                 echo "$PARAM_DUR" | grep -Eq "[0-9]+"
                 if [ $? -ne 0 ]; then
@@ -356,7 +394,7 @@ function exec_preset_use {
     fi
 
     # Overriding duration
-    if [ -n "$PARAM_DUR" ]; then 
+    if [ -n "$PARAM_DUR" ]; then
         debug "Overriding duration with $PARAM_DUR"
         DUR="$PARAM_DUR"
     fi
@@ -422,7 +460,7 @@ function exec_preset_help {
     echo "COMMANDS:"
     echo "  use             Use preset"
     echo "  list            List your presets"
-    echo "  add             Configure new preset" 
+    echo "  add             Configure new preset"
     echo "  remove          Removes a preset"
     echo
     echo "OPTIONS:"
@@ -447,7 +485,7 @@ function exec_preset {
 
         # other
         *) print_invalid_cmd_and_exit "Invalid command '$1'" \
-                                      "$(exec_preset_help)" ;; 
+                                      "$(exec_preset_help)" ;;
     esac
     shift
 }
@@ -455,13 +493,13 @@ function exec_preset {
 #-----------------------------------[ Clean ]-----------------------------------
 function exec_clean {
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
-     
+
     local WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
 
     echo "Resetting slack status to blank"
     for workspace in $(echo "$WORKSPACES" | tr ',' '\n'); do
-        change_status_by_workspace "${workspace}" "" "" "0"
+        clean_status_by_workspace "${workspace}"
     done
 }
 
