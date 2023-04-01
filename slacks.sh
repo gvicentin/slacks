@@ -18,6 +18,7 @@ readonly YELLOW=$(tput setaf 3)
 readonly RESET=$(tput sgr0)
 
 readonly CONFIG_FILE="${HOME}/.slacks.conf"
+readonly DEFAULT_EMOJI=":speech_balloon:"
 readonly DEFAULT_CONFIG=$(cat <<EOM
 WORKSPACES=[]
 
@@ -289,12 +290,27 @@ function exec_workspace {
 }
 
 #------------------------------------[ Set ]------------------------------------
+function exec_set_help {
+    echo "Usage: $(basename $0) set --status STATUS_TEXT [OPTIONS]"
+    echo
+    echo "Update your status using custom options. The parameter --status is required"
+    echo "for setting the be filled in the status message."
+    echo
+    echo "OPTIONS:"
+    echo "  --emoji         Select emoji. Default is $DEFAULT_EMOJI"
+    echo "  --duration      Duration in minutes. Default is 0 (doesn't expire)"
+    echo "  --dnd           Do not Disturb. Default is false, use this if you want"
+    echo "                  to pause the notifidations"
+    echo "  -h, --help      Print this help message"
+}
+
 function exec_set {
     local WORKSPACES=""
     local STATUS=""
-    local EMOJI=":default:"
+    local EMOJI="$DEFAULT_EMOJI"
     local DURATION="0"
     local DND="false"
+    local HELP="false"
 
     # Check for config file, source it to access variables
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
@@ -307,13 +323,23 @@ function exec_set {
     while [ -n "$1" ]; do
         # consuming all parameters
         case "$1" in
-            --status   ) STATUS="$2"    && shift ;;
-            --emoji    ) EMOJI="$2"     && shift ;;
-            --duration ) DURATION="$2"  && shift ;;
-            --dnd      ) DND="true"              ;;
+            --status    ) STATUS="$2"    && shift ;;
+            --emoji     ) EMOJI="$2"     && shift ;;
+            --duration  ) DURATION="$2"  && shift ;;
+            --dnd       ) DND="true"              ;;
+            -h | --help ) HELP="true"             ;;
+
+            *) print_invalid_cmd_and_exit "Invalid option $1" \
+                                          "$(exec_set_help)" ;;
         esac
         shift
     done
+
+    # Check if the option is help
+    if [ "$HELP" = "true" ]; then
+        exec_set_help
+        exit 0
+    fi
 
     # Validate status text
     if [ -z "$STATUS" ]; then
@@ -336,11 +362,7 @@ function exec_set {
 #----------------------------------[ Preset ]-----------------------------------
 function exec_preset_use {
     local WORKSPACES=""
-    local PRESET=""
-    local PARAM_DUR=""
-    local DND="false"
-    local DUR="0"
-    local EXP="0"
+    local PRESET=$1
 
     # Check for config file, source it to access variables
     [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
@@ -350,42 +372,18 @@ function exec_preset_use {
     WORKSPACES=$(get_workspaces)
     [ -z "$WORKSPACES" ] && print_no_workspaces_and_exit
 
-    # parameters
-    while [ -n "$1" ]; do
-        case "$1" in
-            # duration option is optional
-            -d | --duration )
-                PARAM_DUR="$2" && shift
-                echo "$PARAM_DUR" | grep -Eq "[0-9]+"
-                if [ $? -ne 0 ]; then
-                    echo "${RED}Error: Invalid duration '${PARAM_DUR}'${RESET}"
-                    exit 1
-                fi
-                ;;
-
-            # do not disturb
-            -n | --dnd ) DND="true" ;;
-
-            # preset
-            *) [ -z "$PRESET" ] && PRESET="$1" ;;
-        esac
-        shift
-    done
-
-    # TODO: remove me
-    # test code
-    debug "preset: $PRESET"
-    debug "duration: $PARAM_DUR"
-    debug "dnd: $DND"
-
     # Getting preset values
-    eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
     eval "TEXT=\$PRESET_TEXT_${PRESET}"
+    eval "EMOJI=\$PRESET_EMOJI_${PRESET}"
     eval "DUR=\$PRESET_DUR_${PRESET}"
+    eval "DND=\$PRESET_DND_${PRESET}"
 
-    [ -z "$DUR" ] && DUR="0"
+    # Default valus if not provided in config file
+    [ -z "$EMOJI" ] && EMOJI="$DEFAULT_EMOJI"
+    [ -z "$DUR" ]   && DUR="0"
+    [ -z "$DND" ]   && DND="false"
 
-    if [[ -z "$EMOJI" || -z "$TEXT" ]]; then
+    if [ -z "$TEXT" ]; then
         echo "${YELLOW}No preset found:${RESET} $PRESET"
         echo
         echo "If this wasn't a typo, then you will want to add the preset to"
@@ -393,24 +391,8 @@ function exec_preset_use {
         exit 1
     fi
 
-    # Overriding duration
-    if [ -n "$PARAM_DUR" ]; then
-        debug "Overriding duration with $PARAM_DUR"
-        DUR="$PARAM_DUR"
-    fi
-
-    # Calculate expiration if needed
-    [ "$DUR" != "0" ] && EXP=$(date -d "now + $DUR min" "+%s")
-
-    if [ "$EXP" == "0" ]; then
-        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT}${RESET}"
-    else
-        UNTIL=$(date -d "@$EXP" "+%H:%M")
-        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT} until ${YELLOW}${UNTIL}${RESET}"
-    fi
-
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
-        change_status_by_workspace "$WORKSPACE" "$EMOJI" "$TEXT" "$EXP" "$DND"
+        change_status_by_workspace "$WORKSPACE" "$TEXT" "$EMOJI" "$DUR" "$DND"
     done
 }
 
