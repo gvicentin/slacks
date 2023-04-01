@@ -197,7 +197,7 @@ function exec_workspace_list {
 }
 
 function exec_workspace_add {
-    echo "${GREEN}Slack Workspace setup${RESET}"
+    echo "${GREEN}Slacks Workspace setup${RESET}"
     echo "${GREEN}==========================${RESET}"
     echo
     echo "You need to have your slack api token ready. If you don't have one,"
@@ -438,6 +438,70 @@ function exec_preset_list {
     done
 }
 
+function exec_preset_add {
+    local STATUS=""
+    local TEXT=""
+    local EMOJI=""
+    local DUR=""
+    local DND=""
+
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+    [ -z "$(get_workspaces)" ] && print_no_workspaces_and_exit
+
+    echo "${GREEN}Slacks Preset create${RESET}"
+    echo "${GREEN}==========================${RESET}"
+    echo
+
+    # Read status. Cannot be empty
+    while [ -z "$STATUS" ]; do
+        read -r -p "${GREEN}Enter a name for your status: ${RESET}" STATUS
+    done
+
+    # Read status. Cannot be empty
+    while [ -z "$TEXT" ]; do
+        read -r -p "${GREEN}Enter a status text: ${RESET}" TEXT
+    done
+    echo "PRESET_TEXT_${STATUS}=\"${TEXT}\"" >> $CONFIG_FILE
+
+    # Read emoji
+    read -r -p "${GREEN}Enter a status emoji. (Enter for default): ${RESET}" EMOJI
+    [ -n "$EMOJI" ] && echo "PRESET_EMOJI_${STATUS}=\"${EMOJI}\"" >> $CONFIG_FILE
+
+    # Read duration
+    read -r -p "${GREEN}Enter a duration in minutes. (Enter for not expiring): ${RESET}" DUR
+    echo "$DUR" | grep -Eq "[0-9]+" && echo "PRESET_DUR_${STATUS}=\"${DUR}\"" >> $CONFIG_FILE
+
+    # Read Do not Disturb
+    read -r -p "${GREEN}Enable Do not Disturb? [y/N]: ${RESET}" DND
+    [ "$DND" == "y" ] && echo "PRESET_DND_${STATUS}=\"true\"" >> $CONFIG_FILE
+
+    # Append new line
+    echo "" >> $CONFIG_FILE
+}
+
+function exec_preset_remove {
+    local PRESET=$1
+
+    [ -f "$CONFIG_FILE" ] || print_config_not_found_and_exit
+    [ -z "$(get_workspaces)" ] && print_no_workspaces_and_exit
+
+    if [ -z "$PRESET" ]; then
+        echo "${RED}Preset required${RESET}"
+        echo
+        echo "Usage: $(basename $0) preset remove PRESET_NAME"
+        exit 1
+    fi
+
+    # Remove preset
+    sed -r "s/^PRESET_TEXT_${PRESET}=.*\$//" -i "${CONFIG_FILE}"
+    sed -r "s/^PRESET_EMOJI_${PRESET}=.*\$//" -i "${CONFIG_FILE}"
+    sed -r "s/^PRESET_DUR_${PRESET}=.*\$//" -i "${CONFIG_FILE}"
+    sed -r "s/^PRESET_DND_${PRESET}=.*\$//" -i "${CONFIG_FILE}"
+
+    # Remove extra lines
+    sed '/^$/N;/^\n$/D' -i ${CONFIG_FILE}
+}
+
 function exec_preset_help {
     echo "Usage: $(basename $0) preset [COMMAND|OPTIONS]"
     echo
@@ -462,10 +526,10 @@ function exec_preset {
 
     case "$1" in
         # commands
-        use    ) exec_preset_use "${@:2}" ;;
-        list   ) exec_preset_list         ;;
-        add    ) exec_preset_add          ;;
-        remove ) exec_preset_remove       ;;
+        use    ) exec_preset_use "${@:2}"    ;;
+        list   ) exec_preset_list            ;;
+        add    ) exec_preset_add             ;;
+        remove ) exec_preset_remove "${@:2}" ;;
 
         # options
         -h | --help ) exec_preset_help ;;
