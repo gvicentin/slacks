@@ -97,13 +97,6 @@ function change_status_by_workspace {
     [ "$DURATION" != "0" ] && EXPIRATION=$(date -d "now + $DURATION min" "+%s") \
                            || DURATION="1440"
 
-    if [ "$EXPIRATION" == "0" ]; then
-        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT}${RESET}"
-    else
-        UNTIL=$(date -d "@$EXPIRATION" "+%H:%M")
-        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT} until ${YELLOW}${UNTIL}${RESET}"
-    fi
-
     # Changing status
     local PROFILE="{\"status_emoji\":\"${EMOJI}\",\"status_text\":\"${STATUS}\",\"status_expiration\":\"${EXPIRATION}\"}"
     debug "Sending request: $PROFILE"
@@ -354,6 +347,13 @@ function exec_set {
         exit 1
     fi
 
+    if [ "$DURATION" == "0" ]; then
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT}${RESET}"
+    else
+        UNTIL=$(date -d "now + $DURATION min" "+%H:%M")
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT} until ${YELLOW}${UNTIL}${RESET}"
+    fi
+
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
         change_status_by_workspace "$WORKSPACE" "$STATUS" "$EMOJI" "$DURATION" "$DND"
     done
@@ -389,6 +389,13 @@ function exec_preset_use {
         echo "If this wasn't a typo, then you will want to add the preset to"
         echo "the config file at ${GREEN}${CONFIG_FILE}${RESET} and try again."
         exit 1
+    fi
+
+    if [ "$DUR" == "0" ]; then
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT}${RESET}"
+    else
+        UNTIL=$(date -d "now + $DUR min" "+%H:%M")
+        echo "Updating status to: ${YELLOW}${EMOJI} ${GREEN}${TEXT} until ${YELLOW}${UNTIL}${RESET}"
     fi
 
     for WORKSPACE in $(echo "$WORKSPACES" | tr ',' '\n'); do
