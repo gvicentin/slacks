@@ -58,6 +58,10 @@ For setting your status using custom parameters using the `set` command.
 # of duration.
 slacks set --status "My status" --emoji ":bomb:" --duration 5
 
+# Use the --dnd flag to pause notifications while the status
+# is active.
+slacks set --status "My focused status" --dnd
+
 # Use --help command to see all the available options
 slacks set --help
 ```
